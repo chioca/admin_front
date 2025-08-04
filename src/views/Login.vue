@@ -29,7 +29,7 @@
       </el-form-item>
 
 
-      <el-checkbox  style="margin:0px 0px 25px 0px;">记住密码</el-checkbox>
+      <el-checkbox  v-model="loginForm.RememberMe" style="margin:0px 0px 25px 0px;">记住密码</el-checkbox>
       <el-form-item style="width:100%;">
         <el-button
             size="large"
@@ -48,15 +48,19 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import requestUtil from '@/util/request'
 import qs from 'qs'
 import {ElMessage} from 'element-plus'
+import { encrypt,decrypt } from '@/util/jsencrypt';
+import Cookies from 'js-cookie';
+import router from '@/router'; 
 
 const loginRef = ref(null)
 const loginForm = ref({
   username:'',
   password:'',
+  RememberMe: false,
 })
 
 const loginRUles = {
@@ -67,13 +71,25 @@ const loginRUles = {
 const handleLogin = ()=>{
     loginRef.value.validate(async (valid) =>{
       if(valid) {
-        let result = await requestUtil.post("user/api/login?", loginForm.value)
+        let result = await requestUtil.post("user/login?", loginForm.value)
         console.log(result)
         result = result.data
         let data = result.data
         if(result.code == 200) {
           ElMessage.success(result.message)
           window.sessionStorage.setItem("token",data.token)
+          window.sessionStorage.setItem("CurrentUser",JSON.stringify(data.user))
+          if(loginForm.value.RememberMe){
+            Cookies.set('username',loginForm.value.username,{expires:30});
+            Cookies.set('password',encrypt(loginForm.value.password),{expires:30});
+            Cookies.set('RememberMe',loginForm.value.RememberMe,{expires:30});            
+          }else{
+            Cookies.remove('username')
+            Cookies.remove('password')
+            Cookies.remove('RememberMe')
+          }
+          router.push('/')
+          
         }else {
           ElMessage.error(result.message)
         }
@@ -83,6 +99,17 @@ const handleLogin = ()=>{
     })
 }
 
+function getCookie() {
+  const username = Cookies.get("username");
+  const password = Cookies.get("password");
+  const RememberMe = Cookies.get("RememberMe");
+  loginForm.value = {
+    username: username === undefined ? loginForm.value.username : username,
+    password: password === undefined ? loginForm.value.password : decrypt(password),
+    RememberMe: RememberMe === undefined ? false : Boolean(RememberMe)
+  };
+}
+getCookie()
 </script>
 
 <style lang="scss" scoped>
